@@ -13,7 +13,13 @@ dlink = Link(
     rel="stylesheet",
     href="https://cdn.jsdelivr.net/npm/daisyui@4.11.1/dist/full.min.css",
 )
-app = FastHTML(hdrs=(tlink, dlink, picolink), ws_hdr=True)
+
+fLink = Link(
+    rel="icon",
+    type="assets/x-icon",
+    href="/assets/favicon.png"
+)
+app = FastHTML(hdrs=(tlink, dlink, picolink, fLink), ws_hdr=True)
 
 model = ChatOpenAI(
     model_kwargs={
