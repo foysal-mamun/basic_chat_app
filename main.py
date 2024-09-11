@@ -22,9 +22,6 @@ fLink = Link(
 app = FastHTML(hdrs=(tlink, dlink, picolink, fLink), ws_hdr=True)
 
 model = ChatOpenAI(
-    model_kwargs={
-        "stream": True
-    }
 )
 sp = SystemMessage(
     content="You are a helpful and concise assistant."
@@ -52,8 +49,8 @@ def ChatMessage(msg_idx, **kwargs):
 def ChatInput():
     return Input(
         type="text",
-        name="msg",
-        id="msg-input",
+        name="user_input",
+        id="user_input",
         placeholder="Type your message here...",
         cls="input input-bordered w-full max-w-xs",
         hx_swap_oob="true"
@@ -68,10 +65,13 @@ def ChatForm():
                 cls="btn btn-primary"
             )
         ),
-        ws_send="",
-        hx_ext="ws",
-        ws_connect="/wscon",
-        cls="flex space-x-2 mt-2"
+        method="post",
+        action="/chat",
+        hx_post="/chat",
+        hx_target="#chatlist",
+        hx_swap="innerHTML",
+        cls="mt-4"
+        
     )
     
 def render_home_page():
@@ -88,57 +88,38 @@ def render_home_page():
         cls="p-4 max-w-lg mx-auto"
     )
     
-# def render_chat_page():
-#     return Body(
-#         H1("Chatbot Demo"),
-#         Div(
-#             *[ChatMessage(idx) for idx in range(len(messages))],
-#             id="chatlist",
-#             cls="chat-box overflow-y-auto",
-#         ),
-#         ,
-#         cls="p-4 max-w-lg mx-auto",
-#     )
-    
 @app.route("/")
 def get():
     page = render_home_page()
     return Title("Chatbot Demo"), page
 
-@app.ws("/wscon")
-async def wscon(msg: str, send):
-    messages.append(HumanMessage(content=msg))
-    print("messages", messages)
-    
-    await send(
-        Div(
-            ChatMessage(
-                len(messages) - 1,
-            ),
-            hx_swap_oob="beforeend",
-            id="chatlist"
+@app.route("/chat")
+def chat( user_input: str):
+    if user_input:
+        messages.append(
+            HumanMessage(content=user_input)
         )
-    )
-    await send(
-        ChatInput()
-    )
-    
-    messages.append(AIMessage(content=""))
-    await send(
-        Div(ChatMessage(len(messages) - 1), hx_swap_oob="beforeend", id="chatlist")
-    )
-    for chunk in model.stream(input=[sp] + messages):
-        chunkval = chunk.content
-        print("CHUNKVAL:", chunkval)
-        messages[-1].content += chunkval
-        await send(
-            Span(
-                chunkval,
-                id=f"chat-content-{len(messages)-1}",
-                hx_swap_oob="beforeend",
-            )
-        )
-        await asyncio.sleep(0.05)
         
+        response = model.invoke(
+            [
+                SystemMessage(
+                    content="Respond like a prirate"
+                ),
+                *messages
+            ]
+        )
+        
+        print(response)
+        
+        messages.append(
+            AIMessage(content=response.content)
+        )
+        
+        return Div(
+            *[
+                ChatMessage(i) for i in range(len(messages))
+            ]
+        )
+            
     
 serve()
