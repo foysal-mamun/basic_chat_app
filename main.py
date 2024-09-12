@@ -4,9 +4,66 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
-import asyncio
+from supabase import create_client, Client
 
 load_dotenv()
+
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY")
+)
+
+MAX_NAME_LENGTH = 15
+MAX_MESSAGE_LENGTH = 50
+
+
+import json
+
+def serialize_message(message):
+    if isinstance(message, HumanMessage):
+        return {
+            "type": "HumanMessage",
+            "content": message.content
+        }
+    elif isinstance(message, AIMessage):
+        return {
+            "type": "AIMessage",
+            "content": message.content
+        }
+    elif isinstance(message, SystemMessage):
+        return {
+            "type": "SystemMessage",
+            "content": message.content
+        }
+    else:
+        raise TypeError(f"Object of type {type(message).__name__} is not JSON serializable")
+
+def add_message(message):
+    serialized_message = serialize_message(message)
+    supabase.table("messages").insert({
+        "message": json.dumps(serialized_message),
+    }).execute()
+
+def deserialize_message(serialized_message):
+    message_dict = json.loads(serialized_message)
+    message_type = message_dict["type"]
+    content = message_dict["content"]
+    
+    if message_type == "HumanMessage":
+        return HumanMessage(content=content)
+    elif message_type == "AIMessage":
+        return AIMessage(content=content)
+    elif message_type == "SystemMessage":
+        return SystemMessage(content=content)
+    else:
+        raise TypeError(f"Unknown message type: {message_type}")
+
+def get_messages():
+    response = (
+        supabase.table("messages").select("*").order("created_at").execute()
+    )
+    messages = [deserialize_message(record["message"]) for record in response.data]
+    return messages          
 
 tlink = (Script(src="https://unpkg.com/tailwindcss-cdn@3.4.3/tailwindcss.js"),)
 dlink = Link(
@@ -26,9 +83,10 @@ model = ChatOpenAI(
 sp = SystemMessage(
     content="You are a helpful and concise assistant."
 )
-messages = []
+
 
 def ChatMessage(msg_idx, **kwargs):
+    messages = get_messages()
     msg = messages[msg_idx]
     role = "user" if isinstance(msg, HumanMessage) else "assistant"
     bubble_class = f"chat-bubble-{'primary' if role == 'user' else 'secondary'}"
@@ -75,6 +133,7 @@ def ChatForm():
     )
     
 def render_home_page():
+    messages = get_messages()
     return Body(
         H1("FastHTML Chat App 💬"),
         Div(
@@ -95,26 +154,28 @@ def get():
 
 @app.route("/chat")
 def chat( user_input: str):
+    
     if user_input:
-        messages.append(
+        add_message(
             HumanMessage(content=user_input)
         )
         
+        messages = get_messages()
+            
         response = model.invoke(
             [
                 SystemMessage(
                     content="Respond like a prirate"
                 ),
-                *messages
+                HumanMessage(content=user_input)
             ]
         )
         
-        print(response)
-        
-        messages.append(
+        add_message(
             AIMessage(content=response.content)
         )
         
+        messages = get_messages()
         return Div(
             *[
                 ChatMessage(i) for i in range(len(messages))
