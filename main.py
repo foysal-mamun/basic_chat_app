@@ -109,7 +109,7 @@ def ChatInput():
         type="text",
         name="user_input",
         id="user_input",
-        placeholder="Type your message here...",
+        placeholder="Type your message here....",
         cls="input input-bordered w-full max-w-xs",
         hx_swap_oob="true"
     )
